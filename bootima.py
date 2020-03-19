@@ -4,11 +4,11 @@
 #
 # Contact:
 # a.s.borlaff@nasa.gov
-# asborlaff@gmail.com 
-# 
+# asborlaff@gmail.com
+#
 #    Bootima
-#    A program to calculate median of large amount of images stored in fits files. 
-#    
+#    A program to calculate median of large amount of images stored in fits files.
+#
 #    v2.0: First working version
 #    v2.1: Starting to add support for more images than RAM through chunking
 ##############################################################################
@@ -30,8 +30,8 @@ from astropy.io import fits
 # Equivalent to a parallel version of [do_something_slow(x) for x in my_list]
 
 
-# DO TO: 
-# 2 - Avoid creating slices again if they are already in place. 
+# DO TO:
+# 2 - Avoid creating slices again if they are already in place.
 
 def does_it_fit_in_RAM(fits_list, ext):
     # Quite slow so far, we must paralelize this.
@@ -56,7 +56,7 @@ def does_it_fit_in_RAM(fits_list, ext):
     arguments = zip(np.array(fits_list), np.array([ext]*len(fits_list)), np.array(["NAXIS2"]*len(fits_list)))
     NAXIS2_out = miniutils.parallel_progbar(astheader, arguments, starmap=True, nprocs=nprocs)
     NAXIS2 = [i[0] for i in NAXIS2_out]
-    
+
     print("Getting BITPIX")
     arguments = zip(np.array(fits_list), np.array([ext]*len(fits_list)), np.array(["BITPIX"]*len(fits_list)))
     bitpix_out = miniutils.parallel_progbar(astheader, arguments, starmap=True, nprocs=nprocs)
@@ -66,13 +66,13 @@ def does_it_fit_in_RAM(fits_list, ext):
 
     print("Checking if dataset fits in RAM:")
 
-    print(NAXIS1)    
+    print(NAXIS1)
 
     #for i in tqdm(fits_list):
     #    NAXIS1.append(astheader(i, ext, "NAXIS1")[0])
     #    NAXIS2.append(astheader(i, ext, "NAXIS2")[0])
     #    bitpix.append(astheader(i, ext, "BITPIX")[0])
-    
+
     if not (len(set(NAXIS1))==1) and (len(set(NAXIS2))==1):
         print("Error: All images must have the same dimensions")
 
@@ -80,7 +80,7 @@ def does_it_fit_in_RAM(fits_list, ext):
     NAXIS2 = int(NAXIS2[0])
     bitpix = np.abs(int(bitpix[0]))
 
-    # Second: check size of files and size of RAM 
+    # Second: check size of files and size of RAM
     image_size = bitpix*np.array(NAXIS1)*np.array(NAXIS2)/8/1024/1024 # In Mb
     dataset_size = image_size*nimages
     print("Image dimensions: " + str(NAXIS1) + " x " + str(NAXIS2) + " x " + str(nimages) + " px³")
@@ -98,7 +98,7 @@ def does_it_fit_in_RAM(fits_list, ext):
         print("----------------------------------")
         return([True, {"NAXIS1": NAXIS1, "NAXIS2": NAXIS2, "available_memory": available_memory,
                         "dataset_size": dataset_size, "nimages": nimages, "image_size": image_size, "bixpix": bitpix}])
-    else: 
+    else:
         print("----------------------------------")
         print("Not enough memory for full bootima")
         print("----------------------------------")
@@ -106,7 +106,7 @@ def does_it_fit_in_RAM(fits_list, ext):
         return([False, {"NAXIS1": NAXIS1, "NAXIS2": NAXIS2, "available_memory": available_memory,
                         "dataset_size": dataset_size, "nimages": nimages, "image_size": image_size, "bixpix": bitpix}])
 
-    
+
 def execute_cmd(cmd_text, verbose=False):
     """
     This program executes in shell the input string command, printing the output for the user
@@ -149,9 +149,9 @@ def astheader(fits_list, ext, key, verbose=False):
 
 
 def bootima_slice(fits_list, ext, nsimul, outname, clean=True, verbose=False, mode="median"):
-    """ 
-    A program to calculate median of large amount of images stored in fits files. 
-    
+    """
+    A program to calculate median of large amount of images stored in fits files.
+
     v2.0: First working version
     v2.1: Starting to add support for more images than RAM through chunking
     """
@@ -180,10 +180,10 @@ def bootima_slice(fits_list, ext, nsimul, outname, clean=True, verbose=False, mo
         ext = [ext]*len(fits_list)
 
     # We move to the files directory
-    # This is a bad practice, but it is the only way to shorten the input line 
+    # This is a bad practice, but it is the only way to shorten the input line
     current_wd = os.getcwd()
     fits_wd = os.path.dirname(os.path.abspath(fits_list[0]))
-    os.chdir(fits_wd)    
+    os.chdir(fits_wd)
     basename_fits_list = [os.path.basename(i) for i in fits_list]
 
 
@@ -201,9 +201,9 @@ def bootima_slice(fits_list, ext, nsimul, outname, clean=True, verbose=False, mo
             str_image_list = str_image_list + " " + basename_fits_list[j]
             if len(set(ext)) != 1:
                 str_ext_list = str_ext_list + " -h" + str(ext[j])
-        
+
         if len(set(ext)) == 1:
-            str_ext_list = " -g" + str(ext[0])            
+            str_ext_list = " -g" + str(ext[0])
             # astarithmetic -h1 masked_ext1.fits -h2 masked_ext1.fits 0 gt nan where
         cmd_text = "astarithmetic --keepinputdir " + str_image_list + " " + str_ext_list + " " + str(len(boot_indexes)) + " " + mode + " --output=" + sim_output_name
         execute_cmd(cmd_text, verbose=verbose)
@@ -222,7 +222,7 @@ def bootima_slice(fits_list, ext, nsimul, outname, clean=True, verbose=False, mo
     execute_cmd(cmd_text, verbose=verbose)
 
     # We calculate the standard deviation image
-    #cmd_text = "astarithmetic --keepinputdir " + basename_str_simulation_list + " -g1 " + str(nsimul) + " std --output=" + std_output_name 
+    #cmd_text = "astarithmetic --keepinputdir " + basename_str_simulation_list + " -g1 " + str(nsimul) + " std --output=" + std_output_name
     #execute_cmd(cmd_text, verbose=verbose)
     cmd_text = "astarithmetic --keepinputdir " + basename_str_simulation_list + " -g1 " + str(nsimul) + " 0.1586553 quantile --output=" + s1down_output_name
     execute_cmd(cmd_text, verbose=verbose)
@@ -236,7 +236,7 @@ def bootima_slice(fits_list, ext, nsimul, outname, clean=True, verbose=False, mo
 
 
     # We move back to the previous wd
-    os.chdir(current_wd)       
+    os.chdir(current_wd)
 
     # We join the two output files into one single file.
     # Extension 0: Empty
@@ -266,16 +266,16 @@ def bootima_slice(fits_list, ext, nsimul, outname, clean=True, verbose=False, mo
         print("Median output not created: Check log.")
         print("Leaving simulations for reprocessing if required.")
 
-        
+
 def slice_fits(fits_list, ext, nslices):
 
     nzfill = int(np.ceil(np.log10(nslices+1)))
     if not isinstance(fits_list, (list,np.ndarray)):
         fits_list = [fits_list]
-     
+
     output = []
-    
-    # Here we have to calculate the sizes of the slices. 
+
+    # Here we have to calculate the sizes of the slices.
     # Take into account that the number of pixels might odd
     # That the slices can be odd too, and thus it has to be calculated while slicing.
     print("Slicing fits")
@@ -307,7 +307,7 @@ def slice_fits(fits_list, ext, nslices):
                 maxx = maxx + slice_size
                 outslices.append(slice_name)
         output.append(outslices)
-    return(np.array(output))        
+    return(np.array(output))
 
 
 def reconstruct_slices(slice_list, ext, outname):
@@ -324,23 +324,23 @@ def reconstruct_slices(slice_list, ext, outname):
         bitpix.append(int(astheader(i, ext, "BITPIX")[0]))
 
     canvas = np.zeros((NAXIS2[0],np.sum(np.array(NAXIS1))))
-    
+
     minx = 0
     maxx = 0
     miny = 0
     maxy = NAXIS2[::-1][0]
-    
+
     for slice_name in slice_list:
         slice_fits = fits.open(slice_name)
         slice_shape = slice_fits[ext].data.shape
         maxx = maxx + slice_shape[1]
-        
+
         print("NAXIS1: " + str(NAXIS1))
-        print("NAXIS2: " + str(NAXIS2))        
+        print("NAXIS2: " + str(NAXIS2))
         print("canvas[" + str(miny) + ":" + str(maxy) + "," + str(minx) + ":" + str(maxx) + "]")
         canvas[miny:maxy,minx:maxx] = slice_fits[ext].data
         minx = minx + slice_shape[1]
-        
+
     hdu1 = fits.PrimaryHDU()
     hdu2 = fits.ImageHDU(canvas)
     new_hdul = fits.HDUList([hdu1, hdu2])
@@ -348,29 +348,29 @@ def reconstruct_slices(slice_list, ext, outname):
     new_hdul.writeto(outname, overwrite=True)
     return(outname)
 
-    
+
 def bootima(fits_list, ext, nsimul, outname, clean=True, verbose=False, mode="median", force_slice=0):
-    """ 
-    A program to calculate median of large amount of images stored in fits files. 
-    
+    """
+    A program to calculate median of large amount of images stored in fits files.
+
     v2.0: First working version
     v2.1: Starting to add support for more images than RAM through chunking
     v2.2: Now using quantiles for 1sigma instead of STD for error extension.
-    v2.2.1: Writing NSIMUL,NSLICES,MODE in header h0 
+    v2.2.1: Writing NSIMUL,NSLICES,MODE in header h0
     """
 
-    
+
     if verbose:
-        print("Bootima v2.2.1")    
+        print("Bootima v2.2.1")
 
     outpath = os.path.dirname(outname)
-    
+
     # Check if the image list fits in RAM
     it_fits = does_it_fit_in_RAM(fits_list=fits_list, ext=ext)
 
     if (it_fits[0]) and (force_slice==0):
         bootima_slice(fits_list=fits_list, ext=ext, nsimul=nsimul, outname=outname,
-                      clean=clean, verbose=verbose, mode=mode)    
+                      clean=clean, verbose=verbose, mode=mode)
     # If it doesnt fit, slice it, bootima it and then reconstruct the result
     if (not it_fits[0]) or (force_slice>0):
         print(it_fits[1])
@@ -380,9 +380,9 @@ def bootima(fits_list, ext, nsimul, outname, clean=True, verbose=False, mode="me
 
         if force_slice > 0:
             print("Forcing slicing! ")
-            print("Nslices: " + str(nslices))            
+            print("Nslices: " + str(nslices))
             nslices = force_slice
-            
+
         print("- Number of slices: " + str(nslices))
         # We will always slice in NAXIS1
         slice_size = int(it_fits[1]["NAXIS1"]/nslices)
@@ -393,7 +393,7 @@ def bootima(fits_list, ext, nsimul, outname, clean=True, verbose=False, mode="me
         for i in range(nslices):
             slice_name = slice_archive[0,i].replace(".fits","_bootslice.fits")
             bootima_slice(fits_list=slice_archive[:,i], ext=1, nsimul=nsimul, outname=slice_name,
-                          clean=clean, verbose=verbose, mode=mode)  
+                          clean=clean, verbose=verbose, mode=mode)
             slice_list.append(slice_name)
             if clean:
                 for file_to_remove in slice_archive[:,i]:
@@ -423,12 +423,12 @@ def bootima(fits_list, ext, nsimul, outname, clean=True, verbose=False, mode="me
 
         if os.path.exists(outname):
             print("Simulations finished!")
-            print("Final coadd: " + outname)  
-   
+            print("Final coadd: " + outname)
+
         else:
             print("Median output not created: Check log.")
             print("Leaving simulations for reprocessing if required.")
 
 
-  
+
     return(outname)
