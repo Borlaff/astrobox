@@ -10,6 +10,8 @@ import bottleneck as bn
 import multiprocessing
 from tqdm import tqdm
 from astropy.io import fits
+from scipy.ndimage import gaussian_filter
+import bootmedian as bm
 
 
 def execute_cmd(cmd_text, verbose=False):
@@ -33,7 +35,7 @@ def smooth_fits(fits_file, ext, sigma):
     """
     This program applies a gaussian smoothing of s=SIGMA to the array stored in the extension EXT of the FITS_FILE.
     """
-    fits_image = fits.open(fits_image)
+    fits_image = fits.open(fits_file)
     fits_image[ext].data = gaussian_filter(fits_image[ext].data, sigma=sigma)
     os.system("rm " + fits_file)
     fits_image.verify("silentfix")
@@ -103,6 +105,16 @@ def interpolate_array(data):
     return(interp)
 
 
+def remove_gradient(input_flc, ext, detected_name):
+    input_fits = fits.open(input_flc)
+    detected_fits = fits.open(detected_name)
+    input_fits[ext].data = detected_fits[1].data
+    os.system("rm " + input_flc)
+    input_fits.verify("silentfix")
+    input_fits.writeto(input_flc)
+    input_fits.close()
+    detected_fits.close()
+
 
 def zeros_to_nan(fits_name, ext):
     print("Remove zeros from " + fits_name)
@@ -170,6 +182,7 @@ def astalign(fits_list, outname, catalog_ref):
     os.system("mv " + work_path + "/coadd.fits" + " " + outfile)
 
 
+
 def normalize_frame(fits_list, ext):
     """
     Normalize the data extension from the input list of files
@@ -200,12 +213,10 @@ def normalize_frame(fits_list, ext):
 
 
 
-
-
 def mask_fits(fits_list, ext, clean=True):
     output_list = []
 
-    if not isinstance(fits_list, (list, np.ndarray)):
+    if isinstance(fits_list, str):
         fits_list=[fits_list]
 
     if isinstance(ext, int):
@@ -252,19 +263,83 @@ def mask_fits(fits_list, ext, clean=True):
     return(output_list)
 
 
+def zeros_to_nan(fits_list, ext):
+    corrected_files = np.array([])
+    for fits_name in fits_list:
+        fits_file = fits.open(fits_name)
+        fits_file[ext].data[fits_file[ext].data == 0] = np.nan
+        fits_name_output = fits_name
+        if os.path.exists(fits_name_output):
+            os.remove(fits_name_output)
+        fits_file.verify("silentfix")
+        fits_file.writeto(fits_name_output)
+        fits_file.close()
+        corrected_files = np.append(corrected_files, fits_name_output)
+    return(corrected_files)
 
-def GTC_IRAF_distortion(fits_list):
-    """
-    This program executes the mosaic_2x2_v2.cl map from python to IRAF using shell.
-    """
-    if isinstance(fits_list, str):
-        fits_list = [fits_list]
 
-    for i in fits_list:
-        os.system("cp -v /home/borlaff/GTC/IRAF/mosaic_2x2_v2.cl .")
-        os.system("echo task \$mosaic=mosaic_2x2_v2.cl > iraf_line_1.txt")
-        os.system("echo mosaic " + i + " > iraf_line_2.txt")
-        os.system("echo logout > iraf_line_3.txt")
-        os.system("cat iraf_line_1.txt iraf_line_2.txt iraf_line_3.txt > iraf.input")
-        os.system("cl < iraf.input")
-        os.system("mv OsirisMosaic.fits " + i.replace(".fits", "_drc.fits"))
+
+def final_skycor(input_flc, ext, nsimul=25):
+    mask_1 = mask_fits(fits_list=[input_flc], ext=ext)
+    detected_name = input_flc.replace("_flc.fits", "_flc_flatted_detected.fits")
+    #remove_gradient(input_flc, ext, detected_name)
+    crude_skycor(input_flc, ext, mask_1[0], nsimul, False, True)
+
+
+def crude_skycor(fitslist, ext, mask=None, nsimul=100, noisechisel_grad=False, bootmedian=True):
+    if isinstance(fitslist, str):
+        fitslist = [fitslist]
+    if isinstance(fitslist, list):
+        for fits_name in fitslist:
+            print(fits_name)
+            fits_image = fits.open(fits_name)
+
+            if mask is not None:
+                print("Input mask accepted: " + mask)
+                mask_fits = fits.open(mask)
+                shape_mask = mask_fits[1].data.shape
+                shape_fits = fits_image[ext].data.shape
+                mask_array = mask_fits[1].data
+                if (shape_mask == (1014, 1014)) & (shape_fits == (1024, 1024)):
+                    mask_array = np.zeros(shape_fits)
+                    border = 5
+                    mask_array[0+border:1024-border,
+                               0+border:1024-border] = mask_fits[0].data
+                if bootmedian:
+                    skylvl = bm.bootmedian(sample_input=fits_image[ext].data[~np.isnan(mask_array)],
+                                           nsimul=nsimul, errors=1)
+                if not bootmedian:
+                    median_sky = bn.nanmedian(fits_image[ext].data[~np.isnan(mask_array)])
+                    #sigma_sky = bn.nanstd(fits_image[ext].data[~np.isnan(mask_array)])
+                    sigma_sky = 0
+                    skylvl = {"median": median_sky,
+                              "s1_up": median_sky+sigma_sky,
+                              "s1_down": median_sky-sigma_sky,
+                              "std1_down": sigma_sky,
+                              "std1_up": sigma_sky}
+            else:
+                if bootmedian:
+                    skylvl = bm.bootmedian(sample_input=fits_image[ext].data, nsimul=nsimul, errors=1)
+                if not bootmedian:
+                    median_sky = bn.nanmedian(fits_image[ext].data)
+                    #sigma_sky = bn.nanstd(fits_image[ext].data)
+                    sigma_sky = 0
+
+                    skylvl = {"median": median_sky,
+                              "s1_up": median_sky+sigma_sky,
+                              "s1_down": median_sky-sigma_sky,
+                              "std1_down": sigma_sky,
+                              "std1_up": sigma_sky}
+
+            print(skylvl)
+            print(np.abs(skylvl["median"] - skylvl["s1_up"])/2.)
+            print("Skylvl: " + str(skylvl["median"]) + " +/- " + str(np.abs(skylvl["s1_up"] - skylvl["s1_down"])/2.))
+            fits_image[ext].data = np.float32(fits_image[ext].data - skylvl["median"])
+            fits_image[0].header['SKYSTD'] = skylvl["std1_down"]
+            fits_image[0].header['SKYLVL'] = skylvl["median"]
+            fits_image[ext].header['SKYSTD'] = skylvl["std1_down"]
+            fits_image[ext].header['SKYLVL'] = skylvl["median"]
+            os.system("rm " + fits_name)
+            fits_image.verify("silentfix")
+            fits_image.writeto(fits_name)
+            fits_image.close()

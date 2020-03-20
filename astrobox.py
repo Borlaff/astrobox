@@ -32,7 +32,7 @@ import gtc_osiris
 import irsa
 import box
 from bootima import bootima as bootima
-
+import bootmedian
 
 print("Astrobox v.1.0")
 print("Astronomy Imaging Tool Box - A box of usual tools for astronomical imaging processing")
