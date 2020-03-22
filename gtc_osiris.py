@@ -55,19 +55,30 @@ def bias_correct(fits_list, bias_list):
 def counts_to_flux(fits_list):
     corrected_files = np.array([])
     for fits_name in fits_list:
-        fits_file = fits.open(fits_name)
-        exptime = fits_file[0].header["ELAPSHUT"]
-        fits_file[1].data = fits_file[1].data/np.float32(exptime)
-        fits_file[2].data = fits_file[2].data/np.float32(exptime)
-        fits_name_output = fits_name
-        if os.path.exists(fits_name_output):
-            os.remove(fits_name_output)
-        fits_file.verify("silentfix")
-        fits_file.writeto(fits_name_output)
-        fits_file.close()
-        box.execute_cmd(cmd_text = "astfits -h0 " + fits_name_output + " --update=UNITS,flux", verbose=False)
-        corrected_files = np.append(corrected_files, fits_name_output)
 
+        unit_type_1 = box.astheader(fits_name, 1, "UNITS")
+        unit_type_2 = box.astheader(fits_name, 2, "UNITS")
+
+        if (unit_type_1 != unit_type_2):
+            print("Error! Units in extension 1 != 2, Check files")
+            return()
+
+        if (unit_type_1 == ["flux"]):
+            print("File " + fits_name + " already in flux units!")
+
+        else:
+           fits_file = fits.open(fits_name)
+           exptime = fits_file[0].header["ELAPSHUT"]
+           fits_file[1].data = fits_file[1].data/np.float32(exptime)
+           fits_file[2].data = fits_file[2].data/np.float32(exptime)
+           fits_name_output = fits_name
+           if os.path.exists(fits_name_output):
+               os.remove(fits_name_output)
+           fits_file.verify("silentfix")
+           fits_file.writeto(fits_name_output)
+           fits_file.close()
+           box.execute_cmd(cmd_text = "astfits -h0 " + fits_name_output + " --update=UNITS,flux", verbose=False)
+           corrected_files = np.append(corrected_files, fits_name_output)
     return(corrected_files)
 
 
