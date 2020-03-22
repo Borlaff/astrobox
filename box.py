@@ -95,6 +95,7 @@ def astheader(fits_list, ext, key):
     return(output_list)
 
 
+
 def interpolate_array(data):
     print("Interpolating NaNs")
     interp1 = np.array(pd.DataFrame(data).interpolate(axis=0, limit_direction="both"))
