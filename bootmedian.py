@@ -47,7 +47,6 @@ s3_up_q = 1 - s3_down_q
 
 def bootstrap_resample(X, weights=False, seed=None):
     dataframe = pd.DataFrame(X)
-    print(seed)
     if not isinstance(weights, bool):
         if bn.nansum(weights) == 0:
             weights = np.ones(len(weights))
@@ -71,6 +70,31 @@ def median_bootstrap(argument):
     X_resample = bootstrap_resample(X=sample, weights=weights)
     median_boot = bn.nanmedian(X_resample)
     return median_boot
+
+
+def mean_bootstrap(argument):
+    # arguments = sample, indexes, i
+    sample = argument[0]
+    weights = argument[1]
+    if (len(argument) == 3):
+        std1 = argument[2]
+        sample = np.random.normal(loc=sample, scale=std1)
+    X_resample = bootstrap_resample(X=sample, weights=weights)
+    median_boot = bn.nanmean(X_resample)
+    return median_boot
+
+
+def std_bootstrap(argument):
+    # arguments = sample, indexes, i
+    sample = argument[0]
+    weights = argument[1]
+    if (len(argument) == 3):
+        std1 = argument[2]
+        sample = np.random.normal(loc=sample, scale=std1)
+    X_resample = bootstrap_resample(X=sample, weights=weights)
+    median_boot = bn.nanstd(X_resample)
+    return median_boot
+
 
 
 def boot_polyfit(x, y, seed):
@@ -197,10 +221,15 @@ def bootmedian(sample_input, nsimul=1000, weights=False, errors=1, std=False, ve
 
         if verbose:
             print("A total of "+str(num_cores)+" workers joined the cluster!")
-        print("A total of "+str(num_cores)+" workers joined the cluster!")
 
         pool = multiprocessing.Pool(processes=num_cores)
-        median_boot = pool.map(median_bootstrap, arguments)
+        if mode == "median":
+            median_boot = pool.map(median_bootstrap, arguments)
+        if mode == "mean":
+            median_boot = pool.map(mean_bootstrap, arguments) 
+        if mode == "std":
+            median_boot = pool.map(std_bootstrap, arguments) 
+
         pool.terminate()
 
     else:
@@ -211,12 +240,18 @@ def bootmedian(sample_input, nsimul=1000, weights=False, errors=1, std=False, ve
                 median_boot[i] = median_bootstrap(arguments[i])
             if mode=="mean":
                 median_boot[i] = mean_bootstrap(arguments[i])
+            if mode=="std":
+                median_boot[i] = mean_bootstrap(arguments[i])
+
 
     #print(median_boot)
     if mode=="median":
         median = bn.nanmedian(median_boot)
     if mode=="mean":
         median = bn.nanmean(median_boot)
+    if mode=="std":
+        median = bn.nanmedian(median_boot)
+
 
     if(errors == 1):
         s1_up = np.percentile(median_boot, s1_up_q*100)

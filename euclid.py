@@ -228,7 +228,7 @@ def read_euclid_mission_plan(data):
     nrows = len(db.iloc[:,0])
     db_small = pd.DataFrame(index = np.arange(nrows), columns=['ID', 'MissionPhase', 'ObservationType',
                                                                'SurveyId', 'MJD2000', 'StartTime', 'Year', 'Day_year',
-                                                               'Lon', 'Lat','RA', 'DEC', 'PA', "exptime"])
+                                                               'Lon', 'Lat','RA', 'DEC', 'PA', "exptime", "expstart"])
 
     db_small["MissionPhase"] = db.iloc[:,]["MissionPhase"]
     db_small["ObservationType"] = db.iloc[:,]["ObservationType"]
@@ -255,6 +255,8 @@ def read_euclid_mission_plan(data):
     db_small["RA"] = gc.icrs.ra.degree
     db_small["DEC"] = gc.icrs.dec.degree
     db_small["exptime"] = np.array(db.iloc[:,]["Duration"]).astype("float")
+    db_small["expstart"] = t
+    
     print("End of line")
     return(db_small)
 

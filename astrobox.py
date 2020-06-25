@@ -31,7 +31,7 @@ import euclid
 import gtc_osiris
 import irsa
 import box
-from bootima import bootima as bootima
+import profiles
 import bootmedian
 
 print("Astrobox v.1.0")

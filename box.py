@@ -12,23 +12,142 @@ from tqdm import tqdm
 from astropy.io import fits
 from scipy.ndimage import gaussian_filter
 import bootmedian as bm
+from matplotlib.path import Path
+
+
+# Generate radial mask 
+def create_circular_mask(h, w, center=None, radius=None):
+    if center is None: # use the middle of the image
+        center = (int(w/2), int(h/2))
+    if radius is None: # use the smallest distance between the center and image walls
+        radius = min(center[0], center[1], w-center[0], h-center[1])
+        
+    Y, X = np.ogrid[:h, :w]
+    dist_from_center = np.sqrt((X - center[0])**2 + (Y-center[1])**2)
+    return(dist_from_center)
+
+def create_angle_mask(h, w, q=1, theta=0, center=None, radius=None, pixscale=1, pitch=90):
+    if center is None: # use the middle of the image
+        center = (int(w/2), int(h/2))
+        
+    if radius is None: # use the smallest distance between the center and image walls
+        radius = min(center[0], center[1], w-center[0], h-center[1])
+    Y, X = np.ogrid[:h, :w]
+
+    radial_grid = np.sqrt((X - center[0])**2 + (Y-center[1])**2)
+    
+    x_image = np.linspace(np.min(X - center[0]),np.max(X - center[0]), w)
+    y_image = np.linspace(np.min(Y - center[1]),np.max(Y - center[1]), h)
+    X_image, Y_image = np.meshgrid(x_image,y_image)
+    
+    X_gal = (X_image*np.cos(np.radians(-theta))-Y_image*np.sin(np.radians(-theta)))/q
+    Y_gal = (X_image*np.sin(np.radians(-theta))+Y_image*np.cos(np.radians(-theta)))     
+    
+    U_gal_pitch = X_gal*np.cos(np.radians(pitch-90)) - Y_gal*np.sin(np.radians(pitch-90))
+    V_gal_pitch = X_gal*np.sin(np.radians(pitch-90)) + Y_gal*np.cos(np.radians(pitch-90))    
+    
+    U_ima_pitch = (U_gal_pitch*q*np.cos(np.radians(theta))-V_gal_pitch*np.sin(np.radians(theta)))
+    V_ima_pitch = (U_gal_pitch*q*np.sin(np.radians(theta))+V_gal_pitch*np.cos(np.radians(theta)))      
+
+    
+    #U_ima = (U_gal_pitch*q*np.cos(np.radians(theta))-V_gal_pitch*np.sin(np.radians(theta)))
+    #V_ima = (U_gal_pitch*q*np.sin(np.radians(theta))+V_gal_pitch*np.cos(np.radians(theta))) 
+
+
+    angle_array = np.degrees(np.arctan2(U_ima_pitch,V_ima_pitch))
+    
+    angle_array[angle_array < 0] = angle_array[angle_array < 0] + 360
+    
+    return(angle_array)
+
+
+
+def create_radial_mask(h, w, q=1, theta=0, center=None, radius=None, pixscale=1):
+    if center is None: # use the middle of the image
+        center = (int(w/2), int(h/2))
+    if radius is None: # use the smallest distance between the center and image walls
+        radius = min(center[0], center[1], w-center[0], h-center[1])
+    Y, X = np.ogrid[:h, :w]
+
+    radial_grid = np.sqrt((X - center[0])**2 + (Y-center[1])**2)
+    
+    x_image = np.linspace(0, w-1, w) - center[0]
+    y_image = np.linspace(0, h-1, h) - center[1]
+    X_image, Y_image = np.meshgrid(x_image,y_image)
+
+    X_gal = (X_image*np.cos(np.radians(-theta))-Y_image*np.sin(np.radians(-theta)))/q 
+    Y_gal = (X_image*np.sin(np.radians(-theta))+Y_image*np.cos(np.radians(-theta))) 
+
+    radial_array = np.sqrt(X_gal**2 + Y_gal**2)
+    return(radial_array)
+
+
+def project_image(input_image, PA, q, clean=True):
+    save_fits(input_image, "projection_dummy.fits")
+    
+    execute_cmd("astwarp --rotate " + str(PA) + " --scale=" + str(q)+ ",1 -h0 projection_dummy.fits")
+    output_image = fits.open("projection_dummy_warped.fits")[1].data
+    if clean:
+        os.system("rm projection_dummy.fits projection_dummy_warped.fits")
+    return(output_image)
+
+        
+def save_fits(array, name):
+    hdu = fits.PrimaryHDU(array)
+    hdul = fits.HDUList([hdu])
+
+    os.system("rm " + name)
+    hdul.writeto(name)
 
 
 def execute_cmd(cmd_text, verbose=False):
     """
     execute_cmd: This program executes in shell the input string command, printing the output for the user
     """
-    print(cmd_text)
-    with open('temp.log', 'wb') as f:
-        process = subprocess.Popen(cmd_text, stdout=subprocess.PIPE, shell=True)
-        for line in iter(process.stdout.readline, b''):  # With Python 3, you need iter  (process.stdout.readline, b'') (i.e. the sentinel passed to iter needs to be a binary string, since b'' != '')
-            sys.stdout.write(line.decode(sys.stdout.encoding))
-            f.write(line)
+    #print(cmd_text)
+    #with open('temp.log', 'wb') as f:
+    #    process = subprocess.Popen(cmd_text, stdout=subprocess.PIPE, shell=True)
+    #    for line in iter(process.stdout.readline, b''):  # With Python 3, you need iter  (process.stdout.readline, b'') (i.e. the sentinel passed to iter needs to be a binary string, since b'' != '')
+    #        sys.stdout.write(line.decode(sys.stdout.encoding))
+    #        f.write(line)
 
     #out, error = p.communicate()
     #if ((len(error) > 5) and verbose):
     #    print(error)
 
+    #print(cmd_text)
+    p = subprocess.Popen(cmd_text, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    out, error = p.communicate()
+    try:
+        output = float(out)
+    except ValueError:
+        output = out.decode("utf-8").replace("'" , "").replace("\n" , "")
+        return(error)
+    return(output)
+
+
+
+def astheader(fits_list, ext, key):
+    """
+    astheader: Writes keywords on fits files using astfits from GnuAstro
+    """
+
+    # First we check if the input is a list:
+    if not isinstance(fits_list, (list,np.ndarray)):
+        fits_list = [fits_list]
+
+    output_list = []
+    for fits_file in fits_list:
+        cmd_text = "astfits -h" + str(ext) + " " + fits_file + " | grep '" + key + "' | awk '{print $3}'"
+        #print(cmd_text)
+        p = subprocess.Popen(cmd_text, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        out, error = p.communicate()
+        try:
+            output = float(out)
+        except ValueError:
+            output = out.decode("utf-8").replace("'" , "").replace("\n" , "")
+        output_list.append(output)
+    return(output_list)
 
 
 def smooth_fits(fits_file, ext, sigma):
@@ -71,28 +190,6 @@ def generate_flag_ima(fits_list, ext):
     return(flag_name_output)
 
 
-
-def astheader(fits_list, ext, key):
-    """
-    astheader: Writes keywords on fits files using astfits from GnuAstro
-    """
-
-    # First we check if the input is a list:
-    if not isinstance(fits_list, (list,np.ndarray)):
-        fits_list = [fits_list]
-
-    output_list = []
-    for fits_file in fits_list:
-        cmd_text = "astfits -h" + str(ext) + " " + fits_file + " | grep '" + key + "' | awk '{print $3}'"
-        #print(cmd_text)
-        p = subprocess.Popen(cmd_text, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        out, error = p.communicate()
-        try:
-            output = float(out)
-        except ValueError:
-            output = out.decode("utf-8").replace("'" , "").replace("\n" , "")
-        output_list.append(output)
-    return(output_list)
 
 
 
@@ -193,23 +290,32 @@ def normalize_frame(fits_list, ext):
         fits_list = [fits_list]
 
     for fits_name in fits_list:
-        fits_file = fits.open(fits_name)
-
-        norma = bn.nanmedian(fits_file[ext].data)
+        #fits_file = fits.open(fits_name)
+        #norma = bn.nanmedian(fits_file[ext].data)
         #if ext==1:
         #    norma = bn.nanmedian(fits_file[ext].data[850:1000,850:1000])
         #if ext==2:
         #    norma = bn.nanmedian(fits_file[ext].data[0:250,850:1000])
 
-        fits_file[ext].data = fits_file[ext].data/norma
-        if os.path.exists(fits_name):
-            os.remove(fits_name)
-        fits_file.verify("silentfix")
-        fits_file.writeto(fits_name)
-        fits_file.close()
-        execute_cmd(cmd_text = "astfits -h" + str(ext)+ " " + fits_name + " --update=NORMAL,True", verbose=False)
-        execute_cmd(cmd_text = "astfits -h" + str(ext)+ " " + fits_name + " --update=NORMFACT," + str(np.round(norma,8)), verbose=False)
-        corrected_files = np.append(corrected_files, fits_name)
+        #fits_file[ext].data = fits_file[ext].data/norma
+        #if os.path.exists(fits_name):
+        #    os.remove(fits_name)
+        #fits_file.verify("silentfix")
+        #fits_file.writeto(fits_name)
+        #fits_file.close()
+        
+        print(fits_name)
+        norma = execute_cmd(cmd_text = "astarithmetic " + fits_name + " -h" + str(ext) + " medianvalue -q", verbose=True)
+        cmd_text = "astarithmetic " + fits_name + " " + str(norma) + " / -K -h" + str(ext)
+        print(cmd_text)
+        execute_cmd(cmd_text = cmd_text, verbose=True)
+        if os.path.isfile(fits_name.replace(".fits", "_arith.fits")):
+            os.system("rm " + fits_name)
+            os.system("mv " + fits_name.replace(".fits", "_arith.fits") + " " + fits_name)        
+            execute_cmd(cmd_text = "astfits -h" + str(ext)+ " " + fits_name + " --update=NORMFACT," + str(np.round(norma,8)), verbose=False)        
+            execute_cmd(cmd_text = "astfits -h" + str(ext)+ " " + fits_name + " --update=NORMAL,True", verbose=False)
+            corrected_files = np.append(corrected_files, fits_name)
+
     return(corrected_files)
 
 
@@ -344,3 +450,54 @@ def crude_skycor(fitslist, ext, mask=None, nsimul=100, noisechisel_grad=False, b
             fits_image.verify("silentfix")
             fits_image.writeto(fits_name)
             fits_image.close()
+
+
+
+# A program to transform ds9 polygon vertice files to fits masks
+# Alejandro Serrano Borlaff
+# PhD Student - Instituto de Astrofisica de Canarias
+# v.1.0 - First version (31/07/2017)
+#####################################################################
+
+# The main idea was taken from
+# http://xingxinghuang.blogspot.fi/2014/05/imagebad-pixel-mask-using-ds9-region.html
+# And https://stackoverflow.com/questions/3654289/scipy-create-2d-polygon-mask
+
+def read_ds9reg(fname):
+    with open(fname) as f:
+        content = f.readlines()
+    # you may also want to remove whitespace characters like `\n` at the end of each line
+    content = [x.strip() for x in content]
+    content = content[3:]
+    polygons = []
+    for i in range(len(content)):
+        polygon_unit = []
+        polygon = content[i].replace("polygon(","").replace(")","").split(",")
+        #print(len(polygon))
+        #print(np.array(np.linspace(start=0,stop=len(polygon)-2,num=len(polygon)/2),dtype="int"))
+        for j in np.array(np.linspace(start=0,stop=len(polygon)-2,num=int(len(polygon)/2)),dtype="int"):
+            x = int(np.round(np.array(float(polygon[j]))))
+            y = int(np.round(np.array(float(polygon[j+1]))))
+            polygon_unit.append((x,y))
+        polygons.append(polygon_unit)
+    return(polygons)
+
+def ds9tomask(fname, nx, ny, outname):
+    polygons = read_ds9reg(fname)
+    #nx, ny = 2000, 2000
+    mask = np.zeros(shape=(ny,nx))
+    x, y = np.meshgrid(np.arange(nx), np.arange(ny))
+    x, y = x.flatten(), y.flatten()
+    points = np.vstack((x,y)).T
+
+    for i in tqdm(range(len(polygons))):
+        path = Path(polygons[i])
+        grid = path.contains_points(points)
+        grid = grid.reshape((ny,nx))
+        mask[grid] = 1
+
+    hdu = fits.PrimaryHDU(mask)
+    os.system("rm "+outname)
+    hdu.writeto(outname)
+    print("File saved:"+ outname)
+    print("Note: 1 is masked. 0 is not masked")
