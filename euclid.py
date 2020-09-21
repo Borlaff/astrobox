@@ -6,6 +6,7 @@
 import os
 import sys
 import glob
+import arrow
 import subprocess
 import datetime
 import healpy as hp
@@ -26,7 +27,45 @@ from astropy.coordinates import SkyCoord
 from astropy.cosmology import WMAP9 as cosmo
 from astropy.convolution import convolve, Gaussian2DKernel, Tophat2DKernel, convolve_fft
 from astropy.time import Time
+from scipy import interpolate
 import box
+
+planets_list = ["Sun", "Mercury", "Venus", "Earth", "Mars", "Jupiter", "Saturn", "Uranus", "Neptune"]
+
+
+def read_ephemerides(body, planets_dir="/home/borlaff/ESA/Euclid/PLANETS/"):
+    print(body)
+    position = pd.read_csv(planets_dir + body.lower() + "_position.dat",
+                           skiprows=34, skipfooter=2, header=None, delim_whitespace=True)
+    position["l"] = position.iloc[:,31]
+    position["b"] = position.iloc[:,32]
+    position["time"] = np.array([arrow.get(position.iloc[:,0][i], 'YYYY-MMM-DD').format('YYYY-MM-DDT00:00:00') for i in range(len(position.iloc[:,0]))])
+
+    # l longitude 
+    # b latitude
+    c = SkyCoord(l=position["l"]*u.degree, b=position["b"]*u.degree, frame='galactic')
+    c_icrs = c.transform_to('icrs')
+    position["ra"] = c_icrs.ra # -180*u.degree
+    position["dec"] = c_icrs.dec
+    
+    return(position)
+
+def position_planet(ephemeris, time, time_zero):
+    # Transform ephemeris dates to astropy Time format
+    t = [Time(i, format='isot', scale='utc') for i in ephemeris["time"]]
+    
+    # Calculate delta time between mission start (time_zero) and the t in the ephemeris
+    mission_t_ephemeris = np.array([(i-time_zero).to_value("jd") for i in t])
+
+    # Calculate delta time between mission start (time_zero) and the t in the exposure
+    mission_time_exposure = np.array([(i-time_zero).to_value("jd") for i in time]) 
+    
+    # Generate the interpolators 
+    ra_exposure = interpolate.interp1d(mission_t_ephemeris,  np.array(ephemeris["ra"]))
+    dec_exposure = interpolate.interp1d(mission_t_ephemeris,  np.array(ephemeris["dec"]))
+    
+    # Return the interpolated ra dec. 
+    return([ra_exposure(mission_time_exposure), dec_exposure(mission_time_exposure)])
 
 
 def euclid_normalize_mask(fits_list):
@@ -256,6 +295,14 @@ def read_euclid_mission_plan(data):
     db_small["DEC"] = gc.icrs.dec.degree
     db_small["exptime"] = np.array(db.iloc[:,]["Duration"]).astype("float")
     db_small["expstart"] = t
+    
+    # Now we add the planets positions in the sky. 
+    planets_position = [read_ephemerides(i) for i in planets_list]
+    for i in range(len(planets_list)):
+        print(planets_list[i])
+        ra_temp, dec_temp = position_planet(ephemeris=planets_position[i], time=db_small["expstart"][:], time_zero=db_small["expstart"][0]) 
+        db_small["ra_" + planets_list[i].lower()] = ra_temp
+        db_small["dec_" + planets_list[i].lower()] = dec_temp
     
     print("End of line")
     return(db_small)

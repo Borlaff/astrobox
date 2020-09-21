@@ -15,6 +15,88 @@ import bootmedian as bm
 from matplotlib.path import Path
 
 
+def make_profile(image, radial_mask, rbins, nsimul=100):
+
+    profile = np.zeros((len(rbins)-1,3))
+    rad = np.zeros((len(rbins)-1,3))
+
+    for i in tqdm(range(len(rbins)-1)):
+        pixels_to_bin = np.where((radial_mask >= rbins[i]) & (radial_mask < rbins[i+1]))
+        rad[i,0] = np.median(radial_mask[pixels_to_bin])
+        rad[i,1] = np.max(radial_mask[pixels_to_bin])
+        rad[i,2] = np.min(radial_mask[pixels_to_bin])        
+        boot_g = bm.bootmedian(image[pixels_to_bin], nsimul=nsimul)
+        profile[i,0] = boot_g["median"]
+        profile[i,1] = boot_g["s1_up"]
+        profile[i,2] = boot_g["s2_down"]
+
+        
+    df = pd.DataFrame(data=np.array([rad[:,0],
+                                     rad[:,1],
+                                     rad[:,2],
+                                     profile[:,0],
+                                     profile[:,1],
+                                     profile[:,2]]).T,
+                      columns=["r", "r_s1up", "r_s1down", "int", "int_s1up", "int_s1down"])
+
+        
+    return(df)
+
+
+def astheader(fits_list, ext, key):
+    """
+    astheader: Writes keywords on fits files using astfits from GnuAstro
+    """
+
+    # First we check if the input is a list:
+    if not isinstance(fits_list, (list,np.ndarray)):
+        fits_list = [fits_list]
+
+    output_list = []
+    for fits_file in fits_list:
+        cmd_text = "astfits -h" + str(ext) + " " + fits_file + " | grep '" + key + "'"
+        #cmd_text = cmd_text.split("=")
+        #print(cmd_text)
+        p = subprocess.Popen(cmd_text, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        out, error = p.communicate()
+        try:
+            output = float(out)
+        except ValueError:
+            output = out.decode("utf-8").replace("'" , "").replace("\n" , "")
+        
+        output=output.split("=")[-1].strip()
+        if output.isalpha():
+            output_list.append(output)
+        else:
+            output_list.append(np.float(output))            
+    return(output_list)
+
+
+# astwarp
+def astscale(fits_list, scale, ext):
+    if not isinstance(fits_list, (list, np.ndarray)):
+        fits_list = [fits_list]
+    
+    outname = []
+    for i in tqdm(fits_list):
+        os.system("astwarp " + str(i) + " -K --coveredfrac=0 --scale=" + str(scale) + "," + str(scale) +" -h" + str(ext))
+        outname.append(i.replace(".fits", "_scaled.fits"))
+    return(outname)
+
+
+
+# astcrop
+def astcrop(fits_list, xcen, ycen, size, ext):
+    if not isinstance(fits_list, (list, np.ndarray)):
+        fits_list = [fits_list]
+    
+    outname = []
+    for i in tqdm(fits_list):
+        os.system("astcrop " + str(i) + " --mode=img -K --width=" + str(size) + " --center=" + str(xcen) + "," + str(ycen) +" -h" + str(ext))
+        outname.append(i.replace(".fits", "_cropped.fits"))
+    return(outname)
+
+
 # Generate radial mask 
 def create_circular_mask(h, w, center=None, radius=None):
     if center is None: # use the middle of the image
@@ -92,10 +174,9 @@ def project_image(input_image, PA, q, clean=True):
     return(output_image)
 
         
-def save_fits(array, name):
-    hdu = fits.PrimaryHDU(array)
+def save_fits(array, name, header=None):
+    hdu = fits.PrimaryHDU(header=header, data=array)
     hdul = fits.HDUList([hdu])
-
     os.system("rm " + name)
     hdul.writeto(name)
 
@@ -125,29 +206,6 @@ def execute_cmd(cmd_text, verbose=False):
         return(error)
     return(output)
 
-
-
-def astheader(fits_list, ext, key):
-    """
-    astheader: Writes keywords on fits files using astfits from GnuAstro
-    """
-
-    # First we check if the input is a list:
-    if not isinstance(fits_list, (list,np.ndarray)):
-        fits_list = [fits_list]
-
-    output_list = []
-    for fits_file in fits_list:
-        cmd_text = "astfits -h" + str(ext) + " " + fits_file + " | grep '" + key + "' | awk '{print $3}'"
-        #print(cmd_text)
-        p = subprocess.Popen(cmd_text, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        out, error = p.communicate()
-        try:
-            output = float(out)
-        except ValueError:
-            output = out.decode("utf-8").replace("'" , "").replace("\n" , "")
-        output_list.append(output)
-    return(output_list)
 
 
 def smooth_fits(fits_file, ext, sigma):
