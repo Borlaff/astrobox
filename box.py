@@ -17,7 +17,7 @@ from matplotlib.path import Path
 
 def make_profile(image, radial_mask, rbins, nsimul=100):
 
-    profile = np.zeros((len(rbins)-1,3))
+    profile = np.zeros((len(rbins)-1,5))
     rad = np.zeros((len(rbins)-1,3))
 
     for i in tqdm(range(len(rbins)-1)):
@@ -28,7 +28,9 @@ def make_profile(image, radial_mask, rbins, nsimul=100):
         boot_g = bm.bootmedian(image[pixels_to_bin], nsimul=nsimul)
         profile[i,0] = boot_g["median"]
         profile[i,1] = boot_g["s1_up"]
-        profile[i,2] = boot_g["s2_down"]
+        profile[i,2] = boot_g["s1_down"]
+        profile[i,3] = boot_g["s2_up"]
+        profile[i,4] = boot_g["s2_down"]
 
         
     df = pd.DataFrame(data=np.array([rad[:,0],
@@ -36,8 +38,10 @@ def make_profile(image, radial_mask, rbins, nsimul=100):
                                      rad[:,2],
                                      profile[:,0],
                                      profile[:,1],
-                                     profile[:,2]]).T,
-                      columns=["r", "r_s1up", "r_s1down", "int", "int_s1up", "int_s1down"])
+                                     profile[:,2],
+                                     profile[:,3],
+                                     profile[:,4]]).T,
+                      columns=["r", "r_s1up", "r_s1down", "int", "int_s1up", "int_s1down", "int_s2up", "int_s2down"])
 
         
     return(df)
