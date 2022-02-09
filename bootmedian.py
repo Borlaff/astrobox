@@ -68,7 +68,7 @@ def median_bootstrap(argument):
         std1 = argument[2]
         sample = np.random.normal(loc=sample, scale=std1)
     X_resample = bootstrap_resample(X=sample, weights=weights)
-    median_boot = bn.nanmedian(X_resample)
+    median_boot = np.median(X_resample)
     return median_boot
 
 
@@ -96,6 +96,36 @@ def std_bootstrap(argument):
     return median_boot
 
 
+def angles_bootstrap(argument):
+    sample=argument[0]
+    weights=argument[1]
+    
+    # Clean those elements that might be NaN in input or weights
+    if isinstance(weights, (list,np.ndarray)):
+        index_nan = np.isnan(np.array(sample)* np.array(weights))
+        weights = weights[~index_nan]
+        weights = weights / np.max(weights)
+    else:
+        index_nan = (np.isnan(sample))
+
+    sample = sample[~index_nan]
+    
+    indexes = np.linspace(0, len(sample)-1, len(sample), dtype="int")
+    
+    if isinstance(weights, (list,np.ndarray)):
+        #print("Weighted bootstrap")
+        boot_index = bootstrap_resample(indexes, weights)
+    else:        
+        #print("No weights")
+        boot_index = bootstrap_resample(indexes)
+            
+    x_boot = np.cos(np.radians(2*sample[boot_index]))
+    y_boot = np.sin(np.radians(2*sample[boot_index]))
+    x_boot_median = np.median(np.array(x_boot))
+    y_boot_median = np.median(np.array(y_boot))
+    median_angle_boot = np.degrees(np.arctan2(y_boot_median,x_boot_median))/2.
+    
+    return(median_angle_boot)   
 
 def boot_polyfit(x, y, dx, dy, seed):
     index_array = np.linspace(0,len(x)-1,len(x), dtype="int")
@@ -107,6 +137,15 @@ def boot_polyfit(x, y, dx, dy, seed):
 
 
 def bootfit(x, y, dx, dy, nsimul, errors=1):
+
+    nan_index = np.where(np.isnan(x*y*dx*dy))[0]
+    if len(nan_index) > 0:
+        print("Cleaning " + str(len(nan_index)) + " NaNs")
+        x = x[~nan_index] 
+        y = y[~nan_index]
+        dx = dx[~nan_index] 
+        dy = dy[~nan_index]                 
+
     m_array = np.empty(nsimul)
     m_array[:] = np.nan
     b_array = np.empty(nsimul)
@@ -234,6 +273,8 @@ def bootmedian(sample_input, nsimul=1000, weights=False, errors=1, std=False, ve
             median_boot = pool.map(mean_bootstrap, arguments) 
         if mode == "std":
             median_boot = pool.map(std_bootstrap, arguments) 
+        if mode == "angles":
+            median_boot = pool.map(angles_bootstrap, arguments) 
 
         pool.terminate()
 
@@ -247,8 +288,11 @@ def bootmedian(sample_input, nsimul=1000, weights=False, errors=1, std=False, ve
                 median_boot[i] = mean_bootstrap(arguments[i])
             if mode=="std":
                 median_boot[i] = mean_bootstrap(arguments[i])
+            if mode=="angles":
+                median_boot[i] = angles_bootstrap(arguments[i])
 
-
+    median_boot = np.array(median_boot)
+    
     #print(median_boot)
     if mode=="median":
         median = bn.nanmedian(median_boot)
@@ -256,7 +300,8 @@ def bootmedian(sample_input, nsimul=1000, weights=False, errors=1, std=False, ve
         median = bn.nanmean(median_boot)
     if mode=="std":
         median = bn.nanmedian(median_boot)
-
+    if mode=="angles":
+        median = angles_bootstrap([median_boot, np.ones(len(median_boot))])
 
     if(errors == 1):
         s1_up = np.percentile(median_boot, s1_up_q*100)

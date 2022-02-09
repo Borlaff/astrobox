@@ -15,7 +15,7 @@ import pandas as pd
 import bottleneck as bn
 import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
-import gizmo_read
+#import gizmo_read
 import shlex
 import multiprocessing
 from reproject import reproject_interp

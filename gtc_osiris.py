@@ -14,7 +14,7 @@ import pandas as pd
 import bottleneck as bn
 import matplotlib.pyplot as plt
 import matplotlib.mlab as mlab
-import gizmo_read
+#import gizmo_read
 import shlex
 import multiprocessing
 from reproject import reproject_interp
@@ -155,13 +155,13 @@ def stack_multifits(fits_target, fits_input, ext):
     #for i,j in zip(ext, ext_target):
     for i in ext:
         cmd_text = "astfits " + fits_input + " -h" + str(i) + " --copy=" + str(i) + " --output=" + fits_target
-        box.execute_cmd(cmd_text, verbose=False)
+        box.execute_cmd(cmd_text, verbose=True)
 
-    box.execute_cmd(cmd_text = "astfits -h0 " + fits_target + " --write=EXTNAME,INFO", verbose=False)
-    box.execute_cmd(cmd_text = "astfits -h1 " + fits_target + " --write=EXTNAME,BIAS_CCD1", verbose=False)
-    box.execute_cmd(cmd_text = "astfits -h2 " + fits_target + " --write=EXTNAME,STD_BIAS_CCD1", verbose=False)
-    box.execute_cmd(cmd_text = "astfits -h3 " + fits_target + " --write=EXTNAME,BIAS_CCD2", verbose=False)
-    box.execute_cmd(cmd_text = "astfits -h4 " + fits_target + " --write=EXTNAME,STD_BIAS_CCD2", verbose=False)
+    box.execute_cmd(cmd_text = "astfits -h0 " + fits_target + " --write=EXTNAME,INFO", verbose=True)
+    box.execute_cmd(cmd_text = "astfits -h1 " + fits_target + " --write=EXTNAME,BIAS_CCD1", verbose=True)
+    box.execute_cmd(cmd_text = "astfits -h2 " + fits_target + " --write=EXTNAME,STD_BIAS_CCD1", verbose=True)
+    box.execute_cmd(cmd_text = "astfits -h3 " + fits_target + " --write=EXTNAME,BIAS_CCD2", verbose=True)
+    box.execute_cmd(cmd_text = "astfits -h4 " + fits_target + " --write=EXTNAME,STD_BIAS_CCD2", verbose=True)
     return(fits_target)
 
 

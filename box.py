@@ -58,21 +58,23 @@ def astheader(fits_list, ext, key):
 
     output_list = []
     for fits_file in fits_list:
-        cmd_text = "astfits -h" + str(ext) + " " + fits_file + " | grep '" + key + "'"
+        cmd_text = "astfits -h" + str(ext) + " " + fits_file + " | grep '^" + key + "'"
         #cmd_text = cmd_text.split("=")
-        #print(cmd_text)
+        print(cmd_text)
         p = subprocess.Popen(cmd_text, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
         out, error = p.communicate()
-        try:
-            output = float(out)
-        except ValueError:
-            output = out.decode("utf-8").replace("'" , "").replace("\n" , "")
+        #try:
+        #    output = float(out)
+        #except ValueError:
+        output = out.decode("utf-8").replace("'" , "").replace("\n" , "")
         
-        output=output.split("=")[-1].strip()
-        if output.isalpha():
-            output_list.append(output)
-        else:
-            output_list.append(np.float(output))            
+        output=output.split("=")[-1].strip().split("/")[0]
+        try:
+            output=float(output)        
+        except ValueError:
+            output = output.strip()
+        
+        output_list.append(output)                
     return(output_list)
 
 
@@ -178,12 +180,48 @@ def project_image(input_image, PA, q, clean=True):
     return(output_image)
 
         
-def save_fits(array, name, header=None):
-    hdu = fits.PrimaryHDU(header=header, data=array)
-    hdul = fits.HDUList([hdu])
-    os.system("rm " + name)
-    hdul.writeto(name)
+       
+def save_fits(array, name, header=None, extname=None):
+    
+    if isinstance(array, (np.ndarray)):
+        hdu = fits.PrimaryHDU(header=header, data=array)
+        hdul = fits.HDUList([hdu])
+        os.system("rm " + name)
+        hdul.writeto(name)
+    
+    if isinstance(array, (list)):
+        print("Multiextension fits")
+        hdu1 = fits.PrimaryHDU()
+        ext_list = [hdu1]
+        print(ext_list)
 
+        for i in range(len(array)):
+            print("ext " + str(i))
+            if isinstance(header, (list)):
+                header_ext = header[i]
+            else:
+                header_ext = None
+                
+            ext_list.append(fits.ImageHDU(data = array[i], header = header))
+
+        new_hdul = fits.HDUList(ext_list)
+        new_hdul.writeto(name, overwrite=True)
+    
+    
+    if extname is not None:
+        output_fits = fits.open(name)
+        
+        if isinstance(extname, (list, np.ndarray)):
+            for i in range(len(extname)):
+                output_fits[i].header["EXTNAME"] = extname[i]
+                
+        if isinstance(extname, (str)):
+            output_fits[0].header["EXTNAME"] = extname
+            
+        output_fits.verify("silentfix")
+        output_fits.writeto(name, overwrite=True)
+        output_fits.close()
+    return(name)
 
 def execute_cmd(cmd_text, verbose=False):
     """
@@ -352,31 +390,31 @@ def normalize_frame(fits_list, ext):
         fits_list = [fits_list]
 
     for fits_name in fits_list:
-        #fits_file = fits.open(fits_name)
-        #norma = bn.nanmedian(fits_file[ext].data)
+        fits_file = fits.open(fits_name)
+        norma = bn.nanmedian(fits_file[ext].data)
         #if ext==1:
-        #    norma = bn.nanmedian(fits_file[ext].data[850:1000,850:1000])
+        #norma = bn.nanmedian(fits_file[ext].data)
         #if ext==2:
         #    norma = bn.nanmedian(fits_file[ext].data[0:250,850:1000])
 
-        #fits_file[ext].data = fits_file[ext].data/norma
-        #if os.path.exists(fits_name):
-        #    os.remove(fits_name)
-        #fits_file.verify("silentfix")
-        #fits_file.writeto(fits_name)
-        #fits_file.close()
+        fits_file[ext].data = fits_file[ext].data/norma
+        if os.path.exists(fits_name):
+            os.remove(fits_name)
+        fits_file.verify("silentfix")
+        fits_file.writeto(fits_name)
+        fits_file.close()
         
         print(fits_name)
-        norma = execute_cmd(cmd_text = "astarithmetic " + fits_name + " -h" + str(ext) + " medianvalue -q", verbose=True)
-        cmd_text = "astarithmetic " + fits_name + " " + str(norma) + " / -K -h" + str(ext)
-        print(cmd_text)
-        execute_cmd(cmd_text = cmd_text, verbose=True)
-        if os.path.isfile(fits_name.replace(".fits", "_arith.fits")):
-            os.system("rm " + fits_name)
-            os.system("mv " + fits_name.replace(".fits", "_arith.fits") + " " + fits_name)        
-            execute_cmd(cmd_text = "astfits -h" + str(ext)+ " " + fits_name + " --update=NORMFACT," + str(np.round(norma,8)), verbose=False)        
-            execute_cmd(cmd_text = "astfits -h" + str(ext)+ " " + fits_name + " --update=NORMAL,True", verbose=False)
-            corrected_files = np.append(corrected_files, fits_name)
+        #norma = execute_cmd(cmd_text = "astarithmetic " + fits_name + " -h" + str(ext) + " medianvalue -q", verbose=True)
+        #cmd_text = "astarithmetic " + fits_name + " " + str(norma) + " / -K -h" + str(ext)
+        #print(cmd_text)
+        #execute_cmd(cmd_text = cmd_text, verbose=True)
+        #if os.path.isfile(fits_name.replace(".fits", "_arith.fits")):
+        #    os.system("rm " + fits_name)
+        #    os.system("mv " + fits_name.replace(".fits", "_arith.fits") + " " + fits_name)        
+        #    execute_cmd(cmd_text = "astfits -h" + str(ext)+ " " + fits_name + " --update=NORMFACT," + str(np.round(norma,8)), verbose=False)        
+        #    execute_cmd(cmd_text = "astfits -h" + str(ext)+ " " + fits_name + " --update=NORMAL,True", verbose=False)
+        #    corrected_files = np.append(corrected_files, fits_name)
 
     return(corrected_files)
 
