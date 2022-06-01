@@ -19,7 +19,7 @@ import matplotlib.mlab as mlab
 import shlex
 import multiprocessing
 from reproject import reproject_interp
-from xmlr import xmliter, XMLParsingMethods
+#from xmlr import xmliter, XMLParsingMethods
 from tqdm import tqdm
 from astropy.io import fits
 from astropy import units as u

@@ -31,7 +31,7 @@ from tqdm import tqdm
 from astropy.io import fits
 import matplotlib.pyplot as plt
 import bottleneck as bn
-import miniutils
+# import miniutils
 
 sigma1 = 0.682689492137086
 sigma2 = 0.954499736103642
@@ -58,7 +58,7 @@ def bootstrap_resample(X, weights=False, seed=None):
         sample_pd = dataframe.sample(len(X), replace=True, random_state = seed)
         X_resample = np.ndarray.flatten(np.array(sample_pd))
 
-    return X_resample
+    return(X_resample)
 
 def median_bootstrap(argument):
     # arguments = sample, indexes, i
@@ -69,7 +69,7 @@ def median_bootstrap(argument):
         sample = np.random.normal(loc=sample, scale=std1)
     X_resample = bootstrap_resample(X=sample, weights=weights)
     median_boot = np.median(X_resample)
-    return median_boot
+    return(median_boot)
 
 
 def mean_bootstrap(argument):
@@ -81,7 +81,19 @@ def mean_bootstrap(argument):
         sample = np.random.normal(loc=sample, scale=std1)
     X_resample = bootstrap_resample(X=sample, weights=weights)
     median_boot = bn.nanmean(X_resample)
-    return median_boot
+    return(median_boot)
+
+
+def s1_bootstrap(argument):
+    # arguments = sample, indexes, i
+    sample = argument[0]
+    weights = argument[1]
+    if (len(argument) == 3):
+        std1 = argument[2]
+        sample = np.random.normal(loc=sample, scale=std1)
+    X_resample = bootstrap_resample(X=sample, weights=weights)
+    median_boot = (np.nanpercentile(X_resample, s1_up_q*100) - np.nanpercentile(X_resample, s1_down_q*100))/2.
+    return(median_boot)
 
 
 def std_bootstrap(argument):
@@ -93,7 +105,7 @@ def std_bootstrap(argument):
         sample = np.random.normal(loc=sample, scale=std1)
     X_resample = bootstrap_resample(X=sample, weights=weights)
     median_boot = bn.nanstd(X_resample)
-    return median_boot
+    return(median_boot)
 
 
 def angles_bootstrap(argument):
@@ -273,6 +285,8 @@ def bootmedian(sample_input, nsimul=1000, weights=False, errors=1, std=False, ve
             median_boot = pool.map(mean_bootstrap, arguments) 
         if mode == "std":
             median_boot = pool.map(std_bootstrap, arguments) 
+        if mode == "s1":
+            median_boot = pool.map(s1_bootstrap, arguments) 
         if mode == "angles":
             median_boot = pool.map(angles_bootstrap, arguments) 
 
@@ -287,7 +301,9 @@ def bootmedian(sample_input, nsimul=1000, weights=False, errors=1, std=False, ve
             if mode=="mean":
                 median_boot[i] = mean_bootstrap(arguments[i])
             if mode=="std":
-                median_boot[i] = mean_bootstrap(arguments[i])
+                median_boot[i] = std_bootstrap(arguments[i])
+            if mode=="s1":
+                median_boot[i] = s1_bootstrap(arguments[i])
             if mode=="angles":
                 median_boot[i] = angles_bootstrap(arguments[i])
 
@@ -299,6 +315,8 @@ def bootmedian(sample_input, nsimul=1000, weights=False, errors=1, std=False, ve
     if mode=="mean":
         median = bn.nanmean(median_boot)
     if mode=="std":
+        median = bn.nanmedian(median_boot)
+    if mode=="s1":
         median = bn.nanmedian(median_boot)
     if mode=="angles":
         median = angles_bootstrap([median_boot, np.ones(len(median_boot))])
