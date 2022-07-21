@@ -111,7 +111,7 @@ def std_bootstrap(argument):
 def angles_bootstrap(argument):
     sample=argument[0]
     weights=argument[1]
-    
+
     # Clean those elements that might be NaN in input or weights
     if isinstance(weights, (list,np.ndarray)):
         index_nan = np.isnan(np.array(sample)* np.array(weights))
@@ -121,28 +121,28 @@ def angles_bootstrap(argument):
         index_nan = (np.isnan(sample))
 
     sample = sample[~index_nan]
-    
+
     indexes = np.linspace(0, len(sample)-1, len(sample), dtype="int")
-    
+
     if isinstance(weights, (list,np.ndarray)):
         #print("Weighted bootstrap")
         boot_index = bootstrap_resample(indexes, weights)
-    else:        
+    else:
         #print("No weights")
         boot_index = bootstrap_resample(indexes)
-            
+
     x_boot = np.cos(np.radians(2*sample[boot_index]))
     y_boot = np.sin(np.radians(2*sample[boot_index]))
     x_boot_median = np.median(np.array(x_boot))
     y_boot_median = np.median(np.array(y_boot))
     median_angle_boot = np.degrees(np.arctan2(y_boot_median,x_boot_median))/2.
-    
-    return(median_angle_boot)   
+
+    return(median_angle_boot)
 
 def boot_polyfit(x, y, dx, dy, seed):
     index_array = np.linspace(0,len(x)-1,len(x), dtype="int")
     index_resamp = bootstrap_resample(X=index_array, weights=False, seed=seed)
-    
+
     m_temp, b_temp = np.polyfit(x[index_resamp]+np.random.normal(0,dx[index_resamp],len(index_resamp)),
                                 y[index_resamp]+np.random.normal(0,dy[index_resamp],len(index_resamp)), 1)
     return(np.array([m_temp, b_temp]))
@@ -153,20 +153,37 @@ def bootfit(x, y, dx, dy, nsimul, errors=1):
     nan_index = np.where(np.isnan(x*y*dx*dy))[0]
     if len(nan_index) > 0:
         print("Cleaning " + str(len(nan_index)) + " NaNs")
-        x = x[~nan_index] 
+        x = x[~nan_index]
         y = y[~nan_index]
-        dx = dx[~nan_index] 
-        dy = dy[~nan_index]                 
+        dx = dx[~nan_index]
+        dy = dy[~nan_index]
 
     m_array = np.empty(nsimul)
     m_array[:] = np.nan
     b_array = np.empty(nsimul)
     b_array[:] = np.nan
 
-    boot_polyfit_results = miniutils.parallel_progbar(boot_polyfit,
-                                                      zip([x]*nsimul, [y]*nsimul, [dx]*nsimul, [dy]*nsimul,
-                                                      np.random.randint(0,100*nsimul,nsimul)),
-                                                      nprocs=4, starmap=True)
+
+    ############
+    if multiprocessing.cpu_count() > 2:
+        num_cores = multiprocessing.cpu_count() - 2
+    else:
+        num_cores = 1
+
+    print("A total of "+str(num_cores)+" workers joined the cluster!")
+    pool = multiprocessing.Pool(processes=num_cores)
+    #############
+    boot_polyfit_results = []
+    for result in tqdm(pool.starmap(boot_polyfit, zip([x]*nsimul, [y]*nsimul, [dx]*nsimul, [dy]*nsimul, np.random.randint(0,100*nsimul,nsimul)))):
+        boot_polyfit_results.append(result)
+    ##########
+    pool.terminate()
+    ##########
+
+    #boot_polyfit_results = miniutils.parallel_progbar(boot_polyfit,
+    #                                                  zip([x]*nsimul, [y]*nsimul, [dx]*nsimul, [dy]*nsimul,
+    #                                                      np.random.randint(0,100*nsimul,nsimul)),
+    #                                                   nprocs=4, starmap=True)
     # boot_polyfit_results = miniutils.parallel_progbar(boot_polyfit, zip([muGaia]*nsimul, [muVis]*nsimul, np.random.randint(0,10*nsimul,nsimul)),
                                                   # nprocs=4, starmap=True)
 #    for i in tqdm(range(nsimul)):
@@ -282,13 +299,13 @@ def bootmedian(sample_input, nsimul=1000, weights=False, errors=1, std=False, ve
         if mode == "median":
             median_boot = pool.map(median_bootstrap, arguments)
         if mode == "mean":
-            median_boot = pool.map(mean_bootstrap, arguments) 
+            median_boot = pool.map(mean_bootstrap, arguments)
         if mode == "std":
-            median_boot = pool.map(std_bootstrap, arguments) 
+            median_boot = pool.map(std_bootstrap, arguments)
         if mode == "s1":
-            median_boot = pool.map(s1_bootstrap, arguments) 
+            median_boot = pool.map(s1_bootstrap, arguments)
         if mode == "angles":
-            median_boot = pool.map(angles_bootstrap, arguments) 
+            median_boot = pool.map(angles_bootstrap, arguments)
 
         pool.terminate()
 
@@ -308,7 +325,7 @@ def bootmedian(sample_input, nsimul=1000, weights=False, errors=1, std=False, ve
                 median_boot[i] = angles_bootstrap(arguments[i])
 
     median_boot = np.array(median_boot)
-    
+
     #print(median_boot)
     if mode=="median":
         median = bn.nanmedian(median_boot)

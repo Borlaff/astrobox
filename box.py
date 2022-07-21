@@ -24,7 +24,7 @@ def make_profile(image, radial_mask, rbins, nsimul=100):
         pixels_to_bin = np.where((radial_mask >= rbins[i]) & (radial_mask < rbins[i+1]))
         rad[i,0] = np.median(radial_mask[pixels_to_bin])
         rad[i,1] = np.max(radial_mask[pixels_to_bin])
-        rad[i,2] = np.min(radial_mask[pixels_to_bin])        
+        rad[i,2] = np.min(radial_mask[pixels_to_bin])
         boot_g = bm.bootmedian(image[pixels_to_bin], nsimul=nsimul)
         profile[i,0] = boot_g["median"]
         profile[i,1] = boot_g["s1_up"]
@@ -32,7 +32,7 @@ def make_profile(image, radial_mask, rbins, nsimul=100):
         profile[i,3] = boot_g["s2_up"]
         profile[i,4] = boot_g["s2_down"]
 
-        
+
     df = pd.DataFrame(data=np.array([rad[:,0],
                                      rad[:,1],
                                      rad[:,2],
@@ -43,7 +43,7 @@ def make_profile(image, radial_mask, rbins, nsimul=100):
                                      profile[:,4]]).T,
                       columns=["r", "r_s1up", "r_s1down", "int", "int_s1up", "int_s1down", "int_s2up", "int_s2down"])
 
-        
+
     return(df)
 
 
@@ -67,14 +67,14 @@ def astheader(fits_list, ext, key):
         #    output = float(out)
         #except ValueError:
         output = out.decode("utf-8").replace("'" , "").replace("\n" , "")
-        
+
         output=output.split("=")[-1].strip().split("/")[0]
         try:
-            output=float(output)        
+            output=float(output)
         except ValueError:
             output = output.strip()
-        
-        output_list.append(output)                
+
+        output_list.append(output)
     return(output_list)
 
 
@@ -82,7 +82,7 @@ def astheader(fits_list, ext, key):
 def astscale(fits_list, scale, ext):
     if not isinstance(fits_list, (list, np.ndarray)):
         fits_list = [fits_list]
-    
+
     outname = []
     for i in tqdm(fits_list):
         os.system("astwarp " + str(i) + " -K --coveredfrac=0 --scale=" + str(scale) + "," + str(scale) +" -h" + str(ext))
@@ -95,7 +95,7 @@ def astscale(fits_list, scale, ext):
 def astcrop(fits_list, xcen, ycen, size, ext):
     if not isinstance(fits_list, (list, np.ndarray)):
         fits_list = [fits_list]
-    
+
     outname = []
     for i in tqdm(fits_list):
         os.system("astcrop " + str(i) + " --mode=img -K --width=" + str(size) + " --center=" + str(xcen) + "," + str(ycen) +" -h" + str(ext))
@@ -103,13 +103,13 @@ def astcrop(fits_list, xcen, ycen, size, ext):
     return(outname)
 
 
-# Generate radial mask 
+# Generate radial mask
 def create_circular_mask(h, w, center=None, radius=None):
     if center is None: # use the middle of the image
         center = (int(w/2), int(h/2))
     if radius is None: # use the smallest distance between the center and image walls
         radius = min(center[0], center[1], w-center[0], h-center[1])
-        
+
     Y, X = np.ogrid[:h, :w]
     dist_from_center = np.sqrt((X - center[0])**2 + (Y-center[1])**2)
     return(dist_from_center)
@@ -117,35 +117,35 @@ def create_circular_mask(h, w, center=None, radius=None):
 def create_angle_mask(h, w, q=1, theta=0, center=None, radius=None, pixscale=1, pitch=90):
     if center is None: # use the middle of the image
         center = (int(w/2), int(h/2))
-        
+
     if radius is None: # use the smallest distance between the center and image walls
         radius = min(center[0], center[1], w-center[0], h-center[1])
     Y, X = np.ogrid[:h, :w]
 
     radial_grid = np.sqrt((X - center[0])**2 + (Y-center[1])**2)
-    
+
     x_image = np.linspace(np.min(X - center[0]),np.max(X - center[0]), w)
     y_image = np.linspace(np.min(Y - center[1]),np.max(Y - center[1]), h)
     X_image, Y_image = np.meshgrid(x_image,y_image)
-    
-    X_gal = (X_image*np.cos(np.radians(-theta))-Y_image*np.sin(np.radians(-theta)))/q
-    Y_gal = (X_image*np.sin(np.radians(-theta))+Y_image*np.cos(np.radians(-theta)))     
-    
-    U_gal_pitch = X_gal*np.cos(np.radians(pitch-90)) - Y_gal*np.sin(np.radians(pitch-90))
-    V_gal_pitch = X_gal*np.sin(np.radians(pitch-90)) + Y_gal*np.cos(np.radians(pitch-90))    
-    
-    U_ima_pitch = (U_gal_pitch*q*np.cos(np.radians(theta))-V_gal_pitch*np.sin(np.radians(theta)))
-    V_ima_pitch = (U_gal_pitch*q*np.sin(np.radians(theta))+V_gal_pitch*np.cos(np.radians(theta)))      
 
-    
+    X_gal = (X_image*np.cos(np.radians(-theta))-Y_image*np.sin(np.radians(-theta)))/q
+    Y_gal = (X_image*np.sin(np.radians(-theta))+Y_image*np.cos(np.radians(-theta)))
+
+    U_gal_pitch = X_gal*np.cos(np.radians(pitch-90)) - Y_gal*np.sin(np.radians(pitch-90))
+    V_gal_pitch = X_gal*np.sin(np.radians(pitch-90)) + Y_gal*np.cos(np.radians(pitch-90))
+
+    U_ima_pitch = (U_gal_pitch*q*np.cos(np.radians(theta))-V_gal_pitch*np.sin(np.radians(theta)))
+    V_ima_pitch = (U_gal_pitch*q*np.sin(np.radians(theta))+V_gal_pitch*np.cos(np.radians(theta)))
+
+
     #U_ima = (U_gal_pitch*q*np.cos(np.radians(theta))-V_gal_pitch*np.sin(np.radians(theta)))
-    #V_ima = (U_gal_pitch*q*np.sin(np.radians(theta))+V_gal_pitch*np.cos(np.radians(theta))) 
+    #V_ima = (U_gal_pitch*q*np.sin(np.radians(theta))+V_gal_pitch*np.cos(np.radians(theta)))
 
 
     angle_array = np.degrees(np.arctan2(U_ima_pitch,V_ima_pitch))
-    
+
     angle_array[angle_array < 0] = angle_array[angle_array < 0] + 360
-    
+
     return(angle_array)
 
 
@@ -158,13 +158,13 @@ def create_radial_mask(h, w, q=1, theta=0, center=None, radius=None, pixscale=1)
     Y, X = np.ogrid[:h, :w]
 
     radial_grid = np.sqrt((X - center[0])**2 + (Y-center[1])**2)
-    
+
     x_image = np.linspace(0, w-1, w) - center[0]
     y_image = np.linspace(0, h-1, h) - center[1]
     X_image, Y_image = np.meshgrid(x_image,y_image)
 
-    X_gal = (X_image*np.cos(np.radians(-theta))-Y_image*np.sin(np.radians(-theta)))/q 
-    Y_gal = (X_image*np.sin(np.radians(-theta))+Y_image*np.cos(np.radians(-theta))) 
+    X_gal = (X_image*np.cos(np.radians(-theta))-Y_image*np.sin(np.radians(-theta)))/q
+    Y_gal = (X_image*np.sin(np.radians(-theta))+Y_image*np.cos(np.radians(-theta)))
 
     radial_array = np.sqrt(X_gal**2 + Y_gal**2)
     return(radial_array)
@@ -172,23 +172,23 @@ def create_radial_mask(h, w, q=1, theta=0, center=None, radius=None, pixscale=1)
 
 def project_image(input_image, PA, q, clean=True):
     save_fits(input_image, "projection_dummy.fits")
-    
+
     execute_cmd("astwarp --rotate " + str(PA) + " --scale=" + str(q)+ ",1 -h0 projection_dummy.fits")
     output_image = fits.open("projection_dummy_warped.fits")[1].data
     if clean:
         os.system("rm projection_dummy.fits projection_dummy_warped.fits")
     return(output_image)
 
-        
-       
+
+
 def save_fits(array, name, header=None, extname=None):
-    
+
     if isinstance(array, (np.ndarray)):
         hdu = fits.PrimaryHDU(header=header, data=array)
         hdul = fits.HDUList([hdu])
         os.system("rm " + name)
         hdul.writeto(name)
-    
+
     if isinstance(array, (list)):
         print("Multiextension fits")
         hdu1 = fits.PrimaryHDU()
@@ -201,23 +201,23 @@ def save_fits(array, name, header=None, extname=None):
                 header_ext = header[i]
             else:
                 header_ext = None
-                
+
             ext_list.append(fits.ImageHDU(data = array[i], header = header))
 
         new_hdul = fits.HDUList(ext_list)
         new_hdul.writeto(name, overwrite=True)
-    
-    
+
+
     if extname is not None:
         output_fits = fits.open(name)
-        
+
         if isinstance(extname, (list, np.ndarray)):
             for i in range(len(extname)):
                 output_fits[i].header["EXTNAME"] = extname[i]
-                
+
         if isinstance(extname, (str)):
             output_fits[0].header["EXTNAME"] = extname
-            
+
         output_fits.verify("silentfix")
         output_fits.writeto(name, overwrite=True)
         output_fits.close()
@@ -239,14 +239,15 @@ def execute_cmd(cmd_text, verbose=False):
     #    print(error)
 
     #print(cmd_text)
-    p = subprocess.Popen(cmd_text, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-    out, error = p.communicate()
-    try:
-        output = float(out)
-    except ValueError:
-        output = out.decode("utf-8").replace("'" , "").replace("\n" , "")
-        return(error)
-    return(output)
+    #p = subprocess.Popen(cmd_text, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+    #out, error = p.communicate()
+    #try:
+    #    output = float(out)
+    #except ValueError:
+    #    output = out.decode("utf-8").replace("'" , "").replace("\n" , "")
+    #    return(error)
+    os.system(cmd_text)
+    #return(output)
 
 
 
@@ -327,7 +328,7 @@ def generate_ref_catalog(ref_image, ext):
     flag_name = generate_flag_ima([ref_image], ext=ext)[0]
     catalog_name = ref_image.replace(".fits",".cat")
     os.system("sex " + ref_image +
-          " -c " + "/home/borlaff/GTC/SEX_files/confi.sex " +
+          " -c " + "/Users/aborlaff/NASA/GTC/SEX_files/confi.sex " +
           "-CHECKIMAGE_NAME image_segmentation.fits " +
           "-CATALOG_NAME " + catalog_name +
           " -FLAG_IMAGE " + flag_name)
@@ -403,7 +404,7 @@ def normalize_frame(fits_list, ext):
         fits_file.verify("silentfix")
         fits_file.writeto(fits_name)
         fits_file.close()
-        
+
         print(fits_name)
         #norma = execute_cmd(cmd_text = "astarithmetic " + fits_name + " -h" + str(ext) + " medianvalue -q", verbose=True)
         #cmd_text = "astarithmetic " + fits_name + " " + str(norma) + " / -K -h" + str(ext)
@@ -411,8 +412,8 @@ def normalize_frame(fits_list, ext):
         #execute_cmd(cmd_text = cmd_text, verbose=True)
         #if os.path.isfile(fits_name.replace(".fits", "_arith.fits")):
         #    os.system("rm " + fits_name)
-        #    os.system("mv " + fits_name.replace(".fits", "_arith.fits") + " " + fits_name)        
-        #    execute_cmd(cmd_text = "astfits -h" + str(ext)+ " " + fits_name + " --update=NORMFACT," + str(np.round(norma,8)), verbose=False)        
+        #    os.system("mv " + fits_name.replace(".fits", "_arith.fits") + " " + fits_name)
+        #    execute_cmd(cmd_text = "astfits -h" + str(ext)+ " " + fits_name + " --update=NORMFACT," + str(np.round(norma,8)), verbose=False)
         #    execute_cmd(cmd_text = "astfits -h" + str(ext)+ " " + fits_name + " --update=NORMAL,True", verbose=False)
         #    corrected_files = np.append(corrected_files, fits_name)
 
